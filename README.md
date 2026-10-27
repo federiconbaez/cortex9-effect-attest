@@ -88,11 +88,26 @@ Resultado medido en una máquina de desarrollo (x86_64, kernel 6.12, como root, 
 
 El job `attest` del CI corre los tests de kernel y el mismo bench con `sudo` en el kernel real del runner de GitHub y **falla** si BPF no carga o si no se cumple el criterio. El reporte JSON queda como artifact `bench-report`.
 
+Resultado en CI ([run 40476638269](https://github.com/federiconbaez/cortex9-effect-attest/actions/runs/40476638269), job `attest`, ubuntu-latest x86_64, kernel 6.17 Azure, cgroup v2, 2026-10-27):
+
+| métrica | valor |
+|---|---|
+| tests de kernel (`--ignored`, con sudo) | 2/2 |
+| calls | 500 (50 tools × 10 rondas, 50 concurrentes) |
+| efectos esperados / encontrados | 2580 / 2580 (**100 %**) |
+| atribuciones cruzadas | **0** |
+| sobres que no verifican / cgroups sin drenar | 0 / 0 |
+| verificación offline por sobre | p50 45 µs, p99 75 µs |
+| latencia `tools/call` atestada | p50 101 ms, p99 268 ms |
+| misma carga sin atestación | p50 27 ms, p99 55 ms |
+
+Sólo se probó en runners x86_64.
+
 ### Qué está probado y qué no
 
 Probado:
 - Formato DSSE contra el vector de test de la especificación (PAE), y rechazo de payload alterado, tipo alterado, clave equivocada y `payloadType` no soportado.
-- Carga real del programa eBPF (verificador del kernel) y atribución por cgroup con 50 calls concurrentes, incluyendo hijos, threads, shell y daemons, en la máquina de desarrollo; en CI, en el runner de GitHub (ver el job `attest`).
+- Carga real del programa eBPF (verificador del kernel) y atribución por cgroup con 50 calls concurrentes, incluyendo hijos, threads, shell y daemons, en la máquina de desarrollo y en el runner de GitHub (job `attest`).
 - Que una apertura de sólo lectura no aparece en la atestación.
 
 No probado / límites conocidos:
@@ -145,6 +160,8 @@ sudo ./target/release/effect-attest bench --tools 50 --rounds 10 --baseline \
 Measured on a development machine (x86_64, kernel 6.12, root, 2026-10-27): 500 calls (50 tools × 10 rounds, 50 concurrent), **2580 / 2580 effects (100 %)**, **0 misattributions**, 0 failed verifications, 0 undrained cgroups; offline verification p50 51 µs / p99 101 µs per envelope; attested call latency p50 120 ms / p99 285 ms vs 22 / 48 ms unattested.
 
 The CI `attest` job runs the kernel tests and the same bench with `sudo` on the GitHub runner's real kernel and **fails** if BPF does not load or the criterion is not met; the JSON report is uploaded as the `bench-report` artifact.
+
+CI result ([run 40476638269](https://github.com/federiconbaez/cortex9-effect-attest/actions/runs/40476638269), `attest` job, ubuntu-latest x86_64, kernel 6.17 Azure, 2026-10-27): kernel tests 2/2; 500 calls, **2580 / 2580 effects (100 %)**, **0 misattributions**, 0 failed verifications, 0 undrained cgroups; verification p50 45 µs / p99 75 µs; attested call latency p50 101 ms / p99 268 ms vs 27 / 55 ms unattested. Only x86_64 runners were tested.
 
 ### Tested and not tested
 
