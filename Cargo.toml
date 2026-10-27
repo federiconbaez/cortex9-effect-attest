@@ -1,0 +1,17 @@
+[workspace]
+resolver = "2"
+members = ["effect-attest", "effect-attest-common"]
+# The eBPF crate targets `bpfel-unknown-none` with nightly and has its own
+# workspace (see effect-attest-ebpf/rust-toolchain.toml).
+exclude = ["effect-attest-ebpf"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Federico Nicolas Báez Rizzo"]
+repository = "https://github.com/federiconbaez/cortex9-effect-attest"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
