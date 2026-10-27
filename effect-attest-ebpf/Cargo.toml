@@ -1,0 +1,36 @@
+[package]
+name = "effect-attest-ebpf"
+description = "eBPF side of effect-attest: per-cgroup capture of exec, open-for-write and connect."
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Federico Nicolas Báez Rizzo"]
+publish = false
+
+[dependencies]
+aya-ebpf = "0.2.1"
+effect-attest-common = { path = "../effect-attest-common" }
+
+[[bin]]
+name = "effect-attest-ebpf"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = "abort"
+incremental = false
+codegen-units = 1
+rpath = false
+
+[profile.release]
+lto = true
+panic = "abort"
+codegen-units = 1
+debug = 2
+
+# Standalone workspace: this crate is built with nightly for bpfel-unknown-none.
+[workspace]
