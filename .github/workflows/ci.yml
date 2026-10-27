@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  BPF_LINKER_VERSION: v0.12.0
+
+jobs:
+  check:
+    name: fmt · clippy · test (sin root)
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: |
+          cargo fmt --all -- --check
+          rustfmt --edition 2021 --check effect-attest-ebpf/src/main.rs
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --workspace --all-targets --locked
+
+  ebpf:
+    name: build eBPF (nightly + bpf-linker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - name: Install bpf-linker
+        run: |
+          curl -sSfL -o /tmp/bpf-linker.tar.zst \
+            "https://github.com/aya-rs/bpf-linker/releases/download/${BPF_LINKER_VERSION}/bpf-linker-x86_64-unknown-linux-musl.tar.zst"
+          mkdir -p "$HOME/.local/bin"
+          tar --zstd -xf /tmp/bpf-linker.tar.zst -C "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build eBPF object
+        working-directory: effect-attest-ebpf
+        run: |
+          bpf-linker --version
+          cargo build --release --locked
+          ls -l target/bpfel-unknown-none/release/effect-attest-ebpf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: effect-attest-ebpf
+          path: effect-attest-ebpf/target/bpfel-unknown-none/release/effect-attest-ebpf
+          if-no-files-found: error
+
+  attest:
+    name: kernel tests + bench 50 tools (sudo, kernel real del runner)
+    runs-on: ubuntu-latest
+    needs: ebpf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/download-artifact@v4
+        with:
+          name: effect-attest-ebpf
+          path: ebpf-obj
+      - name: Kernel
+        run: |
+          uname -r
+          stat -fc %T /sys/fs/cgroup
+      - name: Kernel tests (root, no skips)
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: sudo -E
+        run: |
+          export EFFECT_ATTEST_BPF_OBJ="$PWD/ebpf-obj/effect-attest-ebpf"
+          cargo test --release --locked -p effect-attest --test kernel -- --ignored --test-threads=1
+      - name: Bench (50 tools x 10 rounds, with unattested baseline)
+        run: |
+          cargo build --release --locked -p effect-attest
+          sudo ./target/release/effect-attest bench --tools 50 --rounds 10 --baseline \
+            --bpf-object "$PWD/ebpf-obj/effect-attest-ebpf" --out bench-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-report
+          path: bench-report.json
+          if-no-files-found: warn
